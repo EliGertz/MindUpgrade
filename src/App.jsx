@@ -1074,20 +1074,6 @@ export default function MindUpgrade() {
     setInputEmail(""); setCompleted({}); setHistory({}); setScreen("login");
   };
 
-  const resetToday = async () => {
-    setCompleted({});
-    const nh = { ...history, [todayKey]: { completed: {}, score: 0 } };
-    setHistory(nh);
-    const email = localStorage.getItem("mu_email");
-    if (email) {
-      await fetch(`${API}/data/${encodeURIComponent(email)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ history: nh }),
-      });
-    }
-  };
-
   const genFwParticles = () => {
     const colors = ["#e8ff6b","#6EE7B7","#93C5FD","#F9A8D4","#FCA5A5","#C4B5FD","#fff","#ffd700"];
     const bursts = [{x:30,y:30},{x:70,y:25},{x:20,y:65},{x:80,y:60},{x:50,y:45}];
@@ -1269,11 +1255,6 @@ export default function MindUpgrade() {
             );
           })}
 
-          <div style={{ marginTop:24, display:"flex", gap:10 }}>
-            <button onClick={resetToday} style={{ flex:1, background:"none", border:"1px solid #2a2a2a", borderRadius:8, padding:"11px", color:"#555", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
-              ↺ Reset today's progress
-            </button>
-          </div>
         </div>
       )}
 
