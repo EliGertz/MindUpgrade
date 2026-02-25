@@ -1024,7 +1024,9 @@ export default function MindUpgrade() {
   const [history, setHistory] = useState({});
   const [activeTask, setActiveTask] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [celebrating, setCelebrating] = useState(false);
+  const [fireworks, setFireworks] = useState(false);
+  const [fwParticles, setFwParticles] = useState([]);
+  const [miniParticles, setMiniParticles] = useState([]);
 
   const todayKey = getTodayKey();
 
@@ -1072,7 +1074,45 @@ export default function MindUpgrade() {
     setInputEmail(""); setCompleted({}); setHistory({}); setScreen("login");
   };
 
+  const resetToday = async () => {
+    setCompleted({});
+    const nh = { ...history, [todayKey]: { completed: {}, score: 0 } };
+    setHistory(nh);
+    const email = localStorage.getItem("mu_email");
+    if (email) {
+      await fetch(`${API}/data/${encodeURIComponent(email)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ history: nh }),
+      });
+    }
+  };
+
+  const genFwParticles = () => {
+    const colors = ["#e8ff6b","#6EE7B7","#93C5FD","#F9A8D4","#FCA5A5","#C4B5FD","#fff","#ffd700"];
+    const bursts = [{x:30,y:30},{x:70,y:25},{x:20,y:65},{x:80,y:60},{x:50,y:45}];
+    return bursts.flatMap(b =>
+      Array.from({length:16}, (_, i) => {
+        const angle = (i/16)*Math.PI*2 + (Math.random()-0.5)*0.4;
+        const dist = 80 + Math.random()*140;
+        return {
+          id: Math.random(),
+          ox: b.x + (Math.random()-0.5)*4,
+          oy: b.y + (Math.random()-0.5)*4,
+          tx: Math.cos(angle)*dist,
+          ty: Math.sin(angle)*dist,
+          color: colors[Math.floor(Math.random()*colors.length)],
+          delay: Math.random()*0.7,
+          dur: 1.2+Math.random()*0.8,
+          size: 5+Math.random()*5,
+          round: Math.random()>0.5,
+        };
+      })
+    );
+  };
+
   const markComplete = async (taskId) => {
+    const isNew = !completed[taskId];
     const nc = { ...completed, [taskId]: true };
     setCompleted(nc);
     const count = Object.values(nc).filter(Boolean).length;
@@ -1087,7 +1127,23 @@ export default function MindUpgrade() {
         body: JSON.stringify({ history: nh }),
       });
     }
-    if (score === 100) { setCelebrating(true); setTimeout(() => setCelebrating(false), 3500); }
+    if (!isNew) return;
+    if (score === 100) {
+      const particles = genFwParticles();
+      setFwParticles(particles);
+      setFireworks(true);
+      setTimeout(() => { setFireworks(false); setFwParticles([]); }, 5000);
+    } else {
+      const confetti = Array.from({length:20}, (_, i) => ({
+        id: Math.random(),
+        left: Math.random()*100,
+        color: ["#e8ff6b","#6EE7B7","#93C5FD","#F9A8D4","#FCA5A5","#C4B5FD"][i%6],
+        delay: Math.random()*0.4,
+        size: 6+Math.random()*5,
+      }));
+      setMiniParticles(confetti);
+      setTimeout(() => setMiniParticles([]), 2000);
+    }
   };
 
   const completedCount = Object.values(completed).filter(Boolean).length;
@@ -1106,10 +1162,11 @@ export default function MindUpgrade() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:wght@300;400;500;600&display=swap');
         * { box-sizing:border-box; }
-        .conf { position:fixed; width:8px; height:8px; border-radius:2px; animation:fall 2.5s ease-in forwards; pointer-events:none; z-index:9999; }
-        @keyframes fall { 0%{transform:translateY(-20px) rotate(0deg);opacity:1}100%{transform:translateY(110vh) rotate(720deg);opacity:0} }
-        .trow { background:#111; border:1px solid #1e1e1e; border-radius:12px; padding:16px 18px; display:flex; align-items:center; gap:14px; margin-bottom:10px; transition:border-color .2s, transform .15s; }
-        .trow:not(.done):hover { border-color:#444; transform:translateY(-1px); cursor:pointer; }
+        .conf { position:fixed; border-radius:2px; animation:fall 1.8s ease-in forwards; pointer-events:none; z-index:9999; }
+        @keyframes fall { 0%{transform:translateY(-10px) rotate(0deg);opacity:1}100%{transform:translateY(80vh) rotate(540deg);opacity:0} }
+        @keyframes fw { 0%{transform:translate(0,0) scale(1.2);opacity:1} 80%{opacity:.8} 100%{transform:translate(var(--fw-x),var(--fw-y)) scale(0);opacity:0} }
+        .trow { background:#111; border:1px solid #1e1e1e; border-radius:12px; padding:16px 18px; display:flex; align-items:center; gap:14px; margin-bottom:10px; transition:border-color .2s, transform .15s; cursor:pointer; }
+        .trow:hover { border-color:#444; transform:translateY(-1px); }
         .trow.done { border-color:#e8ff6b33; background:#111a00; }
         .sbtn { border:none; border-radius:6px; padding:7px 16px; font-family:inherit; font-size:13px; font-weight:600; cursor:pointer; transition:opacity .2s; }
         .li { width:100%; padding:14px 16px; background:#1a1a1a; border:1px solid #333; border-radius:6px; color:#fff; font-family:inherit; font-size:16px; outline:none; }
@@ -1121,8 +1178,19 @@ export default function MindUpgrade() {
         ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:#111} ::-webkit-scrollbar-thumb{background:#2a2a2a;border-radius:2px}
       `}</style>
 
-      {celebrating && Array.from({length:45}).map((_,i)=>(
-        <div key={i} className="conf" style={{ left:`${Math.random()*100}%`, background:["#e8ff6b","#6EE7B7","#93C5FD","#F9A8D4","#FCA5A5","#C4B5FD"][i%6], animationDelay:`${Math.random()*.9}s` }} />
+      {miniParticles.map(p=>(
+        <div key={p.id} className="conf" style={{ left:`${p.left}%`, top:0, width:p.size, height:p.size, background:p.color, animationDelay:`${p.delay}s` }} />
+      ))}
+
+      {fireworks && fwParticles.map(p=>(
+        <div key={p.id} style={{
+          position:'fixed', left:`${p.ox}%`, top:`${p.oy}%`,
+          width:p.size, height:p.size, borderRadius:p.round?'50%':'2px',
+          background:p.color, zIndex:9999, pointerEvents:'none',
+          boxShadow:`0 0 6px ${p.color}`,
+          '--fw-x':`${p.tx}px`, '--fw-y':`${p.ty}px`,
+          animation:`fw ${p.dur}s ease-out ${p.delay}s both`,
+        }} />
       ))}
 
       {screen === "login" && (
@@ -1185,7 +1253,7 @@ export default function MindUpgrade() {
           {TASKS.map(task => {
             const done = !!completed[task.id];
             return (
-              <div key={task.id} className={`trow ${done?"done":""}`} onClick={() => !done && setActiveTask(task.id)}>
+              <div key={task.id} className={`trow ${done?"done":""}`} onClick={() => setActiveTask(task.id)}>
                 <span style={{ fontSize:26 }}>{task.icon}</span>
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:11, fontWeight:600, letterSpacing:1.5, color: done ? "#e8ff6b" : task.color, textTransform:"uppercase", marginBottom:2 }}>{task.label}</div>
@@ -1194,11 +1262,18 @@ export default function MindUpgrade() {
                 {!done
                   ? <button className="sbtn" onClick={e=>{e.stopPropagation();setActiveTask(task.id);}}
                       style={{ background:`${task.color}22`, color:task.color, border:`1px solid ${task.color}44` }}>Start</button>
-                  : <span style={{ fontSize:20 }}>✅</span>
+                  : <button className="sbtn" onClick={e=>{e.stopPropagation();setActiveTask(task.id);}}
+                      style={{ background:"#1a1a1a", color:"#555", border:"1px solid #2a2a2a" }}>↺ Play again</button>
                 }
               </div>
             );
           })}
+
+          <div style={{ marginTop:24, display:"flex", gap:10 }}>
+            <button onClick={resetToday} style={{ flex:1, background:"none", border:"1px solid #2a2a2a", borderRadius:8, padding:"11px", color:"#555", fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+              ↺ Reset today's progress
+            </button>
+          </div>
         </div>
       )}
 
