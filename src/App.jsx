@@ -265,11 +265,36 @@ const FOCUS_PASSAGES = [
   "In the middle of every difficulty lies an opportunity worth pursuing.",
 ];
 
-const FOCUS_MATH = [
-  { steps: ["Start with 100", "Subtract 7", "Multiply by 2", "Add 15", "Divide by 3"], answer: 63 },
-  { steps: ["Start with 50", "Add 33", "Multiply by 2", "Subtract 18", "Divide by 2"], answer: 74 },
-  { steps: ["Start with 200", "Divide by 4", "Add 17", "Multiply by 3", "Subtract 26"], answer: 127 },
-];
+const genMathProblem = () => {
+  const steps = [];
+  // Start with a round number that's divisible by 2,3,4,5 for clean divides
+  const starts = [60, 80, 100, 120, 150, 180, 200, 240];
+  let val = starts[Math.floor(Math.random() * starts.length)];
+  steps.push(`Start with ${val}`);
+  const numSteps = 4 + Math.floor(Math.random() * 2); // 4 or 5 steps
+  for (let i = 0; i < numSteps; i++) {
+    const divisors = [2, 3, 4, 5, 6].filter(d => val % d === 0 && val / d >= 10);
+    const choices = ["add", "subtract", "multiply"];
+    if (divisors.length > 0) choices.push("divide");
+    const op = choices[Math.floor(Math.random() * choices.length)];
+    if (op === "add") {
+      const n = Math.floor(Math.random() * 40) + 5;
+      val += n; steps.push(`Add ${n}`);
+    } else if (op === "subtract") {
+      const max = Math.min(val - 10, 50);
+      const n = Math.floor(Math.random() * max) + 5;
+      val -= n; steps.push(`Subtract ${n}`);
+    } else if (op === "multiply") {
+      const n = [2, 3][Math.floor(Math.random() * 2)];
+      if (val * n < 2000) { val *= n; steps.push(`Multiply by ${n}`); }
+      else { val += 10; steps.push(`Add 10`); }
+    } else {
+      const d = divisors[Math.floor(Math.random() * divisors.length)];
+      val = val / d; steps.push(`Divide by ${d}`);
+    }
+  }
+  return { steps, answer: val };
+};
 
 const FIND_THE_ODD = [
   { items: ["apple","mango","banana","hammer","grape"], odd: "hammer", category: "fruits" },
@@ -325,7 +350,7 @@ function FocusTyping({ onComplete, onClose }) {
 
 // Variant B: Mental math chain
 function FocusMath({ onComplete, onClose }) {
-  const [problem] = useState(() => randItem(FOCUS_MATH));
+  const [problem] = useState(() => genMathProblem());
   const [answer, setAnswer] = useState("");
   const [result, setResult] = useState(null);
 
@@ -683,71 +708,65 @@ function PatienceHold({ onComplete, onClose }) {
   );
 }
 
-// Variant C: Don't move — keep cursor/finger still
-function PatienceStill({ onComplete, onClose }) {
-  const [phase, setPhase] = useState("ready"); // ready | watching | result
-  const [moved, setMoved] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(8);
-  const timerRef = useRef(null);
-  const zoneRef = useRef(null);
-
-  const start = () => {
-    setPhase("watching");
-    setMoved(false);
-    setTimeLeft(8);
-  };
+// Variant C: Delayed gratification — wait for the bigger reward
+function PatienceDelay({ onComplete, onClose }) {
+  const [phase, setPhase] = useState("intro"); // intro | waiting | won | failed
+  const [countdown, setCountdown] = useState(12);
 
   useEffect(() => {
-    if (phase !== "watching") return;
-    if (timeLeft <= 0) { setPhase("result"); onComplete(); return; }
-    timerRef.current = setTimeout(() => setTimeLeft(x => x-1), 1000);
-    return () => clearTimeout(timerRef.current);
-  }, [phase, timeLeft]);
+    if (phase !== "waiting") return;
+    if (countdown <= 0) { setPhase("won"); onComplete(); return; }
+    const t = setTimeout(() => setCountdown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [phase, countdown]);
 
-  const handleMove = () => {
-    if (phase !== "watching") return;
-    clearTimeout(timerRef.current);
-    setMoved(true);
-    setPhase("result");
-  };
+  const retry = () => { setPhase("intro"); setCountdown(12); };
 
   return (
     <div>
-      <span style={S.variantTag}>STAY STILL</span>
-      {phase === "ready" && <>
-        <p style={S.sub}>Place your finger or cursor inside the circle and <strong>don't move it</strong> for 8 seconds.</p>
-        <div style={{ display:"flex", justifyContent:"center", margin:"28px 0" }}>
-          <div style={{ width:140, height:140, borderRadius:"50%", background:"#1e1e1e", border:"3px solid #333", display:"flex", alignItems:"center", justifyContent:"center", color:"#555", fontSize:14 }}>zone</div>
+      <span style={S.variantTag}>DELAYED GRATIFICATION</span>
+      {phase === "intro" && <>
+        <p style={S.sub}>You have two options. Choose carefully.</p>
+        <div style={{ display:"flex", flexDirection:"column", gap:10, margin:"20px 0" }}>
+          <button style={S.btn} onClick={() => setPhase("waiting")}>
+            ⏳ Wait 12 seconds — earn 3 points
+          </button>
+          <button style={S.ghost} onClick={() => setPhase("failed")}>
+            Take 1 point now
+          </button>
         </div>
-        <button style={S.btn} onClick={start}>Start</button>
+        <p style={{ color:"#333", fontSize:12 }}>Patience is a skill. Train it.</p>
       </>}
-      {phase === "watching" && <>
-        <p style={S.sub}>Stay still... <strong style={{color:"#e8ff6b"}}>{timeLeft}s</strong> remaining.</p>
+      {phase === "waiting" && <>
+        <p style={S.sub}>Hold on... <strong style={{color:"#C4B5FD"}}>{countdown}s</strong> left. Don't give up!</p>
         <div style={{ display:"flex", justifyContent:"center", margin:"28px 0" }}>
-          <div ref={zoneRef} onMouseMove={handleMove} onTouchMove={handleMove} style={{
+          <div style={{
             width:140, height:140, borderRadius:"50%",
             background:"#C4B5FD22", border:"3px solid #C4B5FD",
-            display:"flex", alignItems:"center", justifyContent:"center",
-            color:"#C4B5FD", fontSize:28, cursor:"none",
-          }}>{timeLeft}</div>
+            display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column",
+          }}>
+            <span style={{ fontSize:42, fontWeight:700, color:"#C4B5FD", lineHeight:1 }}>{countdown}</span>
+            <span style={{ fontSize:10, color:"#666", letterSpacing:1.5, marginTop:4 }}>SECONDS</span>
+          </div>
         </div>
+        <button style={S.ghost} onClick={() => setPhase("failed")}>Give up (take 1 point)</button>
       </>}
-      {phase === "result" && <>
-        <div style={{ textAlign:"center", padding:"16px 0" }}>
-          <div style={{ fontSize:48, marginBottom:8 }}>{!moved ? "🧘" : "😬"}</div>
-          <p style={S.sub}>{!moved ? "Perfect stillness! 8 full seconds." : "You moved! Try again."}</p>
-        </div>
-        {!moved
-          ? <button style={S.btn} onClick={onClose}>Done ✓</button>
-          : <button style={S.ghost} onClick={() => { setPhase("ready"); setTimeLeft(8); }}>Try again</button>
-        }
-      </>}
+      {phase === "won" && <div style={{ textAlign:"center", padding:"16px 0" }}>
+        <div style={{ fontSize:48, marginBottom:8 }}>🏆</div>
+        <p style={S.sub}>You waited! Patience always pays off.</p>
+        <button style={S.btn} onClick={onClose}>Done ✓</button>
+      </div>}
+      {phase === "failed" && <div style={{ textAlign:"center", padding:"16px 0" }}>
+        <div style={{ fontSize:48, marginBottom:8 }}>😅</div>
+        <p style={S.sub}>You took the easy reward. Impulse wins this round.</p>
+        <button style={S.ghost} onClick={retry}>Try again</button>
+      </div>}
     </div>
   );
 }
 
 function PatienceTask({ onComplete, onClose }) {
-  const [variant] = useState(() => randItem([PatienceTap, PatienceHold, PatienceStill]));
+  const [variant] = useState(() => randItem([PatienceTap, PatienceHold, PatienceDelay]));
   const V = variant;
   return <V onComplete={onComplete} onClose={onClose} />;
 }
@@ -760,12 +779,16 @@ const RIDDLES = [
   { q: "What has keys but no locks, space but no room, and you can enter but can't go inside?", a: "keyboard", hint: "Think about everyday objects you use right now.", open: false },
   { q: "I speak without a mouth and hear without ears. I have no body but come alive with wind. What am I?", a: "echo", hint: "Think about what happens in mountains or caves.", open: false },
   { q: "The more you take, the more you leave behind. What am I?", a: "footsteps", hint: "Think about walking.", open: false },
+  { q: "I have cities, but no houses live there. I have mountains, but no trees grow. I have water, but no fish swim. What am I?", a: "map", hint: "Think of something you use to navigate.", open: false },
+  { q: "What gets wetter the more it dries?", a: "towel", hint: "You use it right after a shower.", open: false },
 ];
 
 const LOGIC_PUZZLES = [
   { q: "Alice is older than Bob. Bob is older than Carol. Carol is older than Dave. Who is the youngest?", a: "dave", hint: "Follow the chain step by step.", open: false },
   { q: "A rooster lays an egg on top of a barn roof. Which way does it roll?", a: "roosters don't lay eggs", hint: "Read the question very carefully.", open: false },
   { q: "You have two buckets: one holds 3L, one holds 5L. How do you measure exactly 4L?", a: "", hint: "Fill the 5L, pour into 3L, empty 3L, pour remaining 2L into 3L, refill 5L, pour 1L into 3L.", open: true },
+  { q: "If you're running a race and you pass the person in 2nd place, what position are you now in?", a: "2nd", hint: "You didn't pass the person in 1st place.", open: false },
+  { q: "A woman shoots her husband, then holds him underwater for five minutes. Ten minutes later they go out to dinner together. How?", a: "", hint: "Think of a profession where 'shooting' and 'developing' mean something different.", open: true },
 ];
 
 const PATTERN_PUZZLES = [
